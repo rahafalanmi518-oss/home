@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة المنتجات الموحد (تخزين محلي)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        /* الألوان: أزرق داكن (#174A6A)، أزرق سماوي (#00A8E8)، أبيض (#F8FFFF) */
+        body { font-family: 'Arial', sans-serif; margin: 0; padding: 0; background-color: #F8FFFF; color: #333; text-align: right; direction: rtl; }
+        .top-nav { background-color: #174A6A; padding: 0 30px; display: flex; justify-content: flex-end; align-items: center; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); }
+        .nav-links { display: flex; flex-grow: 1; justify-content: flex-end; }
+        .nav-links a { color: #C0E8F8; text-decoration: none; padding: 15px 18px; margin-right: 5px; font-size: 15px; font-weight: bold; transition: background-color 0.3s, color 0.3s; border-radius: 6px 6px 0 0; cursor: pointer; }
+        .nav-links a:hover { background-color: #1F6C99; }
+        .nav-links .active-tab { background-color: #00A8E8; color: white; }
+        .search-box { position: relative; margin-right: 20px; }
+        .search-box input { padding: 8px 10px 8px 30px; border: none; border-radius: 20px; background-color: #F8FFFF; font-size: 14px; }
+        .search-box button { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; }
+        .search-box i { color: #174A6A; }
+
+        /* حاوية المحتوى العام */
+        .container { max-width: 1200px; margin: 40px auto; padding: 35px; background-color: white; border-radius: 12px; box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08); }
+        h1 { color: #174A6A; border-bottom: 3px solid #E0F7FF; padding-bottom: 15px; margin-bottom: 30px; font-size: 28px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* رسائل الحالة */
+        .status-message { padding: 15px; margin-bottom: 20px; border-radius: 8px; font-weight: bold; border-right: 4px solid; }
+        .status-message.success { background-color: #d4edda; color: #155724; border-color: #2ecc71; }
+        .status-message.error { background-color: #f8d7da; color: #721c24; border-color: #e74c3c; }
+        .status-message.warning { background-color: #fff3cd; color: #856404; border-color: #ffc107; }
+
+        /* حقول الإدخال والنموذج */
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #444; }
+        input[type="text"], input[type="number"], input[type="url"], select, textarea { width: 100%; padding: 10px; border: 1px solid #D0E0E8; border-radius: 5px; box-sizing: border-box; }
+        .submit-button { background-color: #FFB300; color: #174A6A; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background-color 0.3s; }
+        .submit-button:hover { background-color: #FF9800; }
+
+        /* جدول عرض البيانات */
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .data-table th, .data-table td { border: 1px solid #D0E0E8; padding: 12px; text-align: right; }
+        .data-table th { background-color: #00A8E8; color: white; }
+        .data-table tr:nth-child(even) { background-color: #F0F8FF; }
+        .action-btn { background-color: #174A6A; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px; transition: background-color 0.3s; }
+        .delete-btn { background-color: #e74c3c; }
+        .share-btn { background-color: #2ecc71; }
+        .search-site-btn { background-color: #ff9800; }
+        /* تصميم النجوم */
+        .rating { color: #FFD700; font-size: 1.2em; }
+        .rating i.fa-star-o { color: #ccc; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <nav class="top-nav" id="tab-nav">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="بحث بالاسم أو الرقم...">
+                <button onclick="searchProducts()"><i class="fa fa-search"></i></button>
+            </div>
+            <div class="nav-links">
+                <a onclick="showTab('all-products')" id="all-products-link" class="active-tab"><i class="fa fa-list"></i> جميع المنتجات</a>
+                <a onclick="showTab('categories')" id="categories-link"><i class="fa fa-tags"></i> التصنيفات</a>
+                <a onclick="showTab('edit-delete')" id="edit-delete-link"><i class="fa fa-edit"></i> تعديل/حذف المنتج</a>
+                <a onclick="showTab('add-product')" id="add-product-link"><i class="fa fa-plus"></i> إضافة المنتج</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container">
+        <div id="status-display" class="status-message" style="display:none;"></div>
+
+        <div id="all-products" class="tab-content active">
+            <h1>جميع المنتجات</h1>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>رقم المنتج</th>
+                        <th>الاسم</th>
+                        <th>التصنيف</th>
+                        <th>التقييم (من 5)</th>
+                        <th>السعر الأصلي</th>
+                        <th>السعر الحالي</th>
+                        <th>إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="products-table-body">
+                    </tbody>
+            </table>
+        </div>
+
+        <div id="categories" class="tab-content">
+             <h1>إدارة التصنيفات</h1>
+             <p>هذا القسم مصمم لعرض التصنيفات.</p>
+             <div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:20px;">
+                <div style="background-color: #F0F8FF; padding: 15px; border-radius: 8px; border: 1px solid #D0E0E8;">إلكترونيات 📱</div>
+                <div style="background-color: #F0F8FF; padding: 15px; border-radius: 8px; border: 1px solid #D0E0E8;">أزياء وملابس 👕</div>
+             </div>
+        </div>
+
+        <div id="edit-delete" class="tab-content">
+             <h1>تعديل وحذف المنتجات</h1>
+             <div id="edit-form-container" style="padding: 20px; border: 1px dashed #D0E0E8; border-radius: 8px;">
+                <p>اختر منتجاً من جدول "جميع المنتجات" للبدء في التعديل هنا.</p>
+             </div>
+        </div>
+        
+        <div id="add-product" class="tab-content">
+            <h1>➕ إضافة منتج جديد</h1>
+            
+            <form id="add-product-form">
+                <div class="form-group"><label for="pid">رقم المنتج (للتأكد من عدم التكرار):</label><input type="text" id="pid" name="product_id" placeholder="مثال: A123456" required></div>
+                <div class="form-group"><label for="pname">اسم المنتج:</label><input type="text" id="pname" name="product_name" required></div>
+                
+                <div class="form-group">
+                    <label for="search_link">رابط الموقع المرتبط للبحث عن المنتج (الرابط الأساسي):</label>
+                    <input type="url" id="search_link" name="search_link" 
+                           value="https://tonrzsa-design.github.io/Home/"
+                           placeholder="مثال: https://tonrzsa-design.github.io/Home/">
+                    <p style="font-size: 0.8em; color: #888; margin-top: 5px;">* ملاحظة: سيتم فتح هذا الرابط كما هو بالضبط عند النقر على زر "بحث في الموقع".</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="pcategory">تصنيف المنتج:</label>
+                    <select id="pcategory" name="category" required>
+                        <option value="">-- اختر --</option>
+                        <option value="إلكترونيات">إلكترونيات</option>
+                        <option value="أزياء">أزياء</option>
+                        <option value="منزل">منزل</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="pdescription">وصف المنتج:</label>
+                    <textarea id="pdescription" name="description" rows="3" placeholder="أدخل وصفاً مفصلاً للمنتج هنا..."></textarea>
+                </div>
+                
+                <div style="display:flex; gap:20px;">
+                    <div class="form-group" style="flex:1;"><label for="rprice">السعر قبل الخصم (اختياري):</label><input type="number" id="rprice" name="regular_price" step="0.01" placeholder="99.99"></div>
+                    <div class="form-group" style="flex:1;"><label for="sprice">السعر بعد الخصم (اختياري):</label><input type="number" id="sprice" name="sale_price" step="0.01" placeholder="79.99"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="prating">تقييم المنتج (من 0 إلى 5):</label>
+                    <input type="number" id="prating" name="rating" step="0.5" min="0" max="5" placeholder="مثال: 4.5">
+                </div>
+
+                <div class="form-group" style="border: 1px dashed #D0E0E8; padding: 15px; border-radius: 8px;">
+                    <label>صورة المنتج (رابط URL فقط):</label>
+                    <input type="url" name="image_url" placeholder="أدخل رابط صورة خارجي هنا (اختياري)">
+                </div>
+
+                <button type="submit" class="submit-button"><i class="fa fa-save"></i> حفظ وإضافة المنتج</button>
+            </form>
+        </div>
+
+    </main>
+
+    <script>
+        const STORAGE_KEY = 'products_list_v8'; 
+        const DEFAULT_SEARCH_SITE = 'https://tonrzsa-design.github.io/Home/';
+        
+        // ----------------------------------------------------
+        // الدوال الأساسية
+        // ----------------------------------------------------
+        function loadProducts() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            return data ? JSON.parse(data) : [];
+        }
+
+        function saveProducts(products) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+        }
+
+        function displayStatus(message, type = 'success') {
+            const display = document.getElementById('status-display');
+            display.textContent = message;
+            display.className = `status-message ${type}`;
+            display.style.display = 'block';
+            
+            setTimeout(() => {
+                display.style.display = 'none';
+            }, 5000);
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.nav-links a').forEach(link => {
+                link.classList.remove('active-tab');
+            });
+
+            document.getElementById(tabId).classList.add('active');
+            document.getElementById(tabId + '-link').classList.add('active-tab');
+
+            if (tabId === 'all-products') {
+                renderProducts(loadProducts());
+            }
+        }
+        
+        function getStarRatingHTML(rating) {
+            const numRating = parseFloat(rating) || 0;
+            let stars = '';
+            for (let i = 1; i <= 5; i++) {
+                if (i <= numRating) {
+                    stars += '<i class="fa fa-star"></i>'; 
+                } else if (i - 0.5 === numRating) {
+                    stars += '<i class="fa fa-star-half-o"></i>'; 
+                } else {
+                    stars += '<i class="fa fa-star-o"></i>'; 
+                }
+            }
+            return `<span class="rating">${stars}</span>`;
+        }
+        
+        // ----------------------------------------------------
+        // ✨ وظيفة البحث في الموقع (الرابط الأساسي فقط)
+        // ----------------------------------------------------
+        function searchProductOnSite(productId, searchLink) {
+            // نستخدم الرابط المُخزن للمنتج، أو الرابط الافتراضي
+            const siteToSearch = searchLink && searchLink.trim() !== 'null' ? searchLink : DEFAULT_SEARCH_SITE;
+            
+            // التوجيه إلى الرابط الأساسي فقط
+            const searchURL = siteToSearch;
+            
+            window.open(searchURL, '_blank');
+            displayStatus(`🔗 توجيه مباشر: جارٍ فتح رابط الموقع الأساسي: ${siteToSearch}`, 'success');
+        }
+
+
+        // ----------------------------------------------------
+        // وظيفة الإضافة (النموذج)
+        // ----------------------------------------------------
+        document.getElementById('add-product-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const newProduct = {
+                product_id: form.product_id.value.toUpperCase(),
+                name: form.product_name.value,
+                category: form.category.value,
+                description: form.description.value || '', 
+                regular_price: parseFloat(form.regular_price.value) || null,
+                sale_price: parseFloat(form.sale_price.value) || null,
+                rating: parseFloat(form.rating.value) || null,
+                image_url: form.image_url.value || null,
+                search_link: form.search_link.value || null 
+            };
+
+            let products = loadProducts();
+            
+            if (products.some(p => p.product_id === newProduct.product_id)) {
+                displayStatus(`🚫 فشل: رقم المنتج (${newProduct.product_id}) موجود مسبقاً!`, 'error');
+                return;
+            }
+
+            products.push(newProduct);
+            saveProducts(products);
+            
+            displayStatus('✅ تم إضافة المنتج بنجاح وحفظه محلياً!', 'success');
+            form.reset();
+            showTab('all-products');
+        });
+
+        // ----------------------------------------------------
+        // وظيفة عرض المنتجات في الجدول
+        // ----------------------------------------------------
+        function renderProducts(productsToRender) {
+            const tbody = document.getElementById('products-table-body');
+            tbody.innerHTML = '';
+            
+            if (productsToRender.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center;">لا توجد منتجات مدخلة حالياً.</td></tr>`;
+                return;
+            }
+
+            productsToRender.forEach(product => {
+                const row = tbody.insertRow();
+                
+                row.insertCell().textContent = product.product_id;
+                row.insertCell().textContent = product.name;
+                row.insertCell().textContent = product.category;
+                
+                // خلية التقييم بالنجوم
+                const ratingCell = row.insertCell();
+                ratingCell.innerHTML = getStarRatingHTML(product.rating); 
+                
+                row.insertCell().textContent = product.regular_price ? `${product.regular_price.toFixed(2)} ر.س` : '---';
+                row.insertCell().textContent = product.sale_price ? `${product.sale_price.toFixed(2)} ر.س` : '---';
+
+                const actionsCell = row.insertCell();
+                
+                // تمرير الرابط بشكل آمن لضمان عدم حدوث خطأ في سلاسل النصوص المنفردة (Single Quotes)
+                const siteLink = product.search_link ? product.search_link.replace(/'/g, "\\'") : ''; 
+                
+                actionsCell.innerHTML = `
+                    <button class="action-btn" onclick="openEditForm('${product.product_id}')"><i class="fa fa-edit"></i> تعديل</button>
+                    <button class="action-btn delete-btn" onclick="deleteProduct('${product.product_id}')"><i class="fa fa-trash"></i> حذف</button>
+                    <button class="action-btn search-site-btn" onclick="searchProductOnSite('${product.product_id}', '${siteLink}')"><i class="fa fa-search"></i> بحث في الموقع</button>
+                    <button class="action-btn share-btn" onclick="shareProduct('${product.product_id}')"><i class="fa fa-share-alt"></i> مشاركة</button>
+                `;
+            });
+        }
+        
+        // ----------------------------------------------------
+        // وظيفة المشاركة (Share) - الرابط الأساسي فقط
+        // ----------------------------------------------------
+        function shareProduct(productId) {
+            const products = loadProducts();
+            const product = products.find(p => p.product_id === productId);
+
+            if (!product) {
+                displayStatus('❌ المنتج غير موجود للمشاركة.', 'error');
+                return;
+            }
+
+            // تجهيز رسالة المشاركة
+            const regularPrice = product.regular_price ? `السعر الأصلي: ${product.regular_price.toFixed(2)} ر.س` : '';
+            const salePrice = product.sale_price ? `السعر الحالي: ${product.sale_price.toFixed(2)} ر.س` : 'السعر غير محدد';
+            const priceInfo = product.sale_price ? `${regularPrice}\n💰 ${salePrice}` : `💰 ${regularPrice}`;
+            const ratingText = product.rating ? `⭐ التقييم: ${product.rating} من 5` : '⭐ لا يوجد تقييم حالي.';
+            
+            // ✨ بناء رابط الموقع الأساسي فقط
+            const siteToSearch = product.search_link && product.search_link.trim() !== 'null' ? product.search_link : DEFAULT_SEARCH_SITE;
+            const directLink = siteToSearch; 
+
+            const shareMessage = `
+✨ منتج جديد ومميز! ✨
+--------------------------
+🏷️ اسم المنتج: ${product.name}
+🔢 رقم المنتج: ${product.product_id}
+⚙️ التصنيف: ${product.category}
+
+${ratingText}
+
+📝 الوصف: ${product.description || 'لا يوجد وصف.'}
+${priceInfo}
+
+${product.image_url ? '🔗 رابط الصورة: ' + product.image_url : '🖼️ لا يوجد رابط صورة مرفق.'}
+
+🔗 رابط الموقع الأساسي: ${directLink}
+(ابحث يدوياً باستخدام رقم المنتج: ${product.product_id})
+
+#منتجات #تسوق_أونلاين #عرض_خاص
+            `.trim();
+
+            // محاولة نسخ الرسالة إلى حافظة الجهاز (Clipboard)
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(shareMessage).then(() => {
+                    displayStatus('✅ تم نسخ معلومات المنتج بنجاح! يمكنك الآن لصقها ومشاركتها.', 'success');
+                }).catch(err => {
+                    displayStatus('⚠️ فشل النسخ التلقائي. يرجى محاولة النسخ اليدوي.', 'warning');
+                    prompt("انسخ الرسالة يدوياً:", shareMessage);
+                });
+            } else {
+                prompt("انسخ الرسالة يدوياً:", shareMessage);
+            }
+        }
+        
+        // ----------------------------------------------------
+        // وظيفة فتح نموذج التعديل
+        // ----------------------------------------------------
+        function openEditForm(productId) {
+            const products = loadProducts();
+            const product = products.find(p => p.product_id === productId);
+
+            if (!product) return;
+
+            const formHTML = `
+                <h2>تعديل المنتج: ${product.name}</h2>
+                <form id="edit-product-form">
+                    <input type="hidden" name="old_id" value="${product.product_id}">
+                    
+                    <div class="form-group"><label>رقم المنتج:</label><input type="text" name="product_id" value="${product.product_id}" required readonly></div>
+                    <div class="form-group"><label>اسم المنتج:</label><input type="text" name="name" value="${product.name}" required></div>
+                    
+                    <div class="form-group">
+                        <label>رابط الموقع المرتبط للبحث (الأساسي):</label>
+                        <input type="url" name="search_link" value="${product.search_link || DEFAULT_SEARCH_SITE}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>التصنيف:</label>
+                        <select name="category" required>
+                            <option value="إلكترونيات" ${product.category === 'إلكترونيات' ? 'selected' : ''}>إلكترونيات</option>
+                            <option value="أزياء" ${product.category === 'أزياء' ? 'selected' : ''}>أزياء</option>
+                            <option value="منزل" ${product.category === 'منزل' ? 'selected' : ''}>منزل</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>وصف المنتج:</label>
+                        <textarea name="description" rows="3">${product.description || ''}</textarea>
+                    </div>
+
+                    <div style="display:flex; gap:20px;">
+                        <div class="form-group" style="flex:1;"><label>السعر الأصلي:</label><input type="number" name="regular_price" step="0.01" value="${product.regular_price || ''}"></div>
+                        <div class="form-group" style="flex:1;"><label>سعر التخفيض:</label><input type="number" name="sale_price" step="0.01" value="${product.sale_price || ''}"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>تقييم المنتج (من 0 إلى 5):</label>
+                        <input type="number" name="rating" step="0.5" min="0" max="5" value="${product.rating || ''}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>رابط الصورة:</label>
+                        <input type="url" name="image_url" value="${product.image_url || ''}">
+                    </div>
+
+                    <button type="submit" class="submit-button" style="background-color:#00A8E8; color:white;"><i class="fa fa-save"></i> حفظ التعديلات</button>
+                </form>
+            `;
+            
+            document.getElementById('edit-form-container').innerHTML = formHTML;
+            document.getElementById('edit-product-form').addEventListener('submit', handleEditSubmit);
+
+            showTab('edit-delete');
+        }
+
+        // ----------------------------------------------------
+        // وظيفة حفظ التعديل
+        // ----------------------------------------------------
+        function handleEditSubmit(e) {
+            e.preventDefault();
+            const form = e.target;
+            const oldId = form.old_id.value;
+            
+            const updatedProduct = {
+                product_id: form.product_id.value,
+                name: form.name.value,
+                category: form.category.value,
+                description: form.description.value || '',
+                regular_price: parseFloat(form.regular_price.value) || null,
+                sale_price: parseFloat(form.sale_price.value) || null,
+                rating: parseFloat(form.rating.value) || null,
+                image_url: form.image_url ? form.image_url.value : '',
+                search_link: form.search_link.value || null 
+            };
+
+            let products = loadProducts();
+            const index = products.findIndex(p => p.product_id === oldId);
+
+            if (index !== -1) {
+                products[index] = updatedProduct;
+                saveProducts(products);
+                displayStatus('✅ تم حفظ التعديلات بنجاح!', 'success');
+                showTab('all-products');
+            } else {
+                displayStatus('❌ فشل حفظ التعديلات.', 'error');
+            }
+        }
+        
+        // ----------------------------------------------------
+        // وظيفة البحث العام (في جدول المنتجات)
+        // ----------------------------------------------------
+        function searchProducts() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const products = loadProducts();
+            
+            const filteredProducts = products.filter(product => 
+                product.name.toLowerCase().includes(query) || 
+                product.product_id.toLowerCase().includes(query)
+            );
+
+            renderProducts(filteredProducts);
+            if (query && filteredProducts.length > 0) {
+                 displayStatus(`✅ تم العثور على ${filteredProducts.length} نتائج مطابقة لـ "${query}"`, 'success');
+            } else if (query) {
+                 displayStatus(`⚠️ لا توجد نتائج مطابقة لـ "${query}"`, 'warning');
+            } else {
+                 displayStatus(`عرض جميع المنتجات.`, 'success');
+            }
+        }
+
+
+        // ----------------------------------------------------
+        // التشغيل عند تحميل الصفحة
+        // ----------------------------------------------------
+        document.addEventListener('DOMContentLoaded', () => {
+            showTab('all-products'); 
+        });
+    </script>
+
+</body>
+</html>
